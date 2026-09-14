@@ -91,9 +91,11 @@ body.dark .toast{background:#4a4f55}
 </head>
 <body>
 <div class="container">
-  <div class="header">
+  <div class="header" style="position:relative">
     <h1>🇹🇭 泰国能效星级计算工具 V4</h1>
     <p>ISO-16358-1 SEER计算 · 泰国表6-2 星级 + 表6-1 EER准入 · 样式阶段 +2% 余量开关</p>
+    <button id="themeBtn" type="button" title="切换界面主题（当前：自动）" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,.18);border:none;color:#fff;font-size:20px;line-height:1;width:38px;height:38px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center">🌙</button>
+    <input type="hidden" id="themeMode" value="auto">
   </div>
 
   <div class="card">
@@ -111,20 +113,6 @@ body.dark .toast{background:#4a4f55}
       <div class="form-group"><label>目标冷量段 <span class="unit">(K)</span></label>
         <input type="number" id="targetCapacityK" value="36" step="1" min="0">
         <div class="hint">档位边界 ≈ 27.3K / 40.9K</div></div>
-    </div>
-    <div class="sep"></div>
-    <div class="margin-box">
-      <input type="checkbox" id="styleMargin" checked>
-      <label for="styleMargin" style="cursor:pointer">样式阶段 +2% 余量（默认开：容量≥97%、中间占比47~53%、SEER/EER阈值×1.02；取消＝按准入门槛 95% / 45~55% 判定）</label>
-    </div>
-    <div class="sep"></div>
-    <div class="toggle-row" style="margin-bottom:0">
-      <span style="font-size:12px;color:var(--text2)">🌙 界面主题：</span>
-      <select id="themeMode" style="width:auto;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text)">
-        <option value="auto" selected>自动（按系统时间 19:00~06:00）</option>
-        <option value="light">浅色</option>
-        <option value="dark">深色</option>
-      </select>
     </div>
   </div>
 
@@ -170,10 +158,14 @@ body.dark .toast{background:#4a4f55}
     </div>
   </div>
 
-  <div class="card" style="text-align:center">
-    <div class="btn-row" style="justify-content:center">
+  <div class="card">
+    <div class="btn-row" style="justify-content:center;margin-bottom:10px">
       <button class="btn btn-primary" onclick="doCalculate()">🧮 自动计算</button>
       <button class="btn btn-outline" onclick="doClear()">🗑️ 清空全部</button>
+    </div>
+    <div class="margin-box" style="max-width:680px;margin:0 auto">
+      <input type="checkbox" id="styleMargin" checked>
+      <label for="styleMargin" style="cursor:pointer">样式阶段 +2% 余量（开：容量≥97%、中间占比47~53%、SEER/EER阈值×1.02；关＝按准入门槛 95% / 45~55% 判定）</label>
     </div>
   </div>
 
@@ -555,18 +547,33 @@ body.dark .toast{background:#4a4f55}
     }catch(e){toast("截图失败: "+e.message);}
   };
 
-  /* ===== 夜间模式（默认按系统时间：19:00~06:00 自动切深色）===== */
+  /* ===== 界面主题：右上角 ☀️/🌙 循环切换；初始按系统时间(19:00~06:00 深色) ===== */
   var NIGHT_START=19, NIGHT_END=6;
+  var THEME_CYCLE=["auto","light","dark"];
+  function systemDark(){var h=new Date().getHours();return (h>=NIGHT_START||h<NIGHT_END)?"dark":"light";}
   function currentTheme(){
     var m=gid("themeMode");var mode=m?m.value:"auto";
     if(mode==="light")return "light";
     if(mode==="dark")return "dark";
-    var h=new Date().getHours();
-    return (h>=NIGHT_START||h<NIGHT_END)?"dark":"light";
+    return systemDark();
+  }
+  function renderThemeBtn(){
+    var b=gid("themeBtn");if(!b)return;
+    var t=currentTheme();
+    b.innerHTML = t==="dark" ? "🌙" : (t==="light" ? "☀️" : "🕐");
+    b.title = "界面主题：当前 " + (t==="dark"?"深色":t==="light"?"浅色":"自动（按系统时间）") + " · 点按切换（自动→浅色→深色）";
   }
   function applyTheme(){
     var t=currentTheme();
     document.body.classList.toggle("dark",t==="dark");
+    renderThemeBtn();
+  }
+  function cycleTheme(){
+    var m=gid("themeMode");var mode=m?m.value:"auto";
+    var idx=THEME_CYCLE.indexOf(mode);if(idx<0)idx=0;
+    m.value = THEME_CYCLE[(idx+1)%THEME_CYCLE.length];
+    applyTheme();
+    toast("主题："+(m.value==="auto"?"自动（按系统时间）":m.value==="light"?"浅色":"深色"));
   }
 
   /* ===== 通报还原数据（解析历史通报文本，回填输入区）===== */
@@ -645,12 +652,12 @@ body.dark .toast{background:#4a4f55}
   gid("capacityRange").addEventListener("input",function(){syncPair("capacityRange");});
   var sels=["productType","inverterType","targetStar","styleMargin"];
   for(var j=0;j<sels.length;j++)gid(sels[j]).addEventListener("change",autoCalc);
-  gid("themeMode").addEventListener("change",applyTheme);
+  if(gid("themeBtn"))gid("themeBtn").addEventListener("click",cycleTheme);
   /* 每分钟复核一次主题（自动模式下到达 19:00/06:00 自动切换） */
   setInterval(applyTheme,60000);
 
   /* ===== 测试/回归接口 ===== */
-  window.__V4={calcSEER:calcSEER,compute:compute,gather:gather,rnd:rnd,tier:tier,starThresh:starThresh,EER_LIM:EER_LIM,STAR:STAR,EPS:EPS,W_PER_K:W_PER_K,marginOn:marginOn,midRange:midRange,capReqPct:capReqPct,applyReport:applyReport,currentTheme:currentTheme,applyTheme:applyTheme};
+  window.__V4={calcSEER:calcSEER,compute:compute,gather:gather,rnd:rnd,tier:tier,starThresh:starThresh,EER_LIM:EER_LIM,STAR:STAR,EPS:EPS,W_PER_K:W_PER_K,marginOn:marginOn,midRange:midRange,capReqPct:capReqPct,applyReport:applyReport,currentTheme:currentTheme,applyTheme:applyTheme,cycleTheme:cycleTheme,systemDark:systemDark};
 })();
 </script>
 </body>
